@@ -6,7 +6,8 @@
 
 enum {
     SKIPPED = 77,
-    SLOT_SECTORS = 0x11000
+    LARGE_SLOT_SECTORS = 0x11000,
+    SMALL_SLOT_SECTORS = 0x10000
 };
 
 static unsigned char *image;
@@ -56,10 +57,12 @@ static bool load(const char *path)
 
 int main(int argument_count, char **arguments)
 {
-    if (argument_count != 2 || !load(arguments[1])) {
-        printf("no device image at %s: skipped\n", argument_count == 2 ? arguments[1] : "?");
+    if ((argument_count != 2 && argument_count != 3) || !load(arguments[1])) {
+        printf("no device image at %s: skipped\n", argument_count >= 2 ? arguments[1] : "?");
         return SKIPPED;
     }
+    bool small_model = argument_count == 3 && strcmp(arguments[2], "512mb") == 0;
+    uint32_t slot_sectors = small_model ? SMALL_SLOT_SECTORS : LARGE_SLOT_SECTORS;
     static uint32_t scratch[UPDATER_SCRATCH_WORDS];
     updater_use_scratch(scratch);
     UpdateFile file = {read_image, (uint32_t)image_size, NULL};
@@ -67,9 +70,9 @@ int main(int argument_count, char **arguments)
                              .write = refuse_write,
                              .context = NULL,
                              .slot_1 = 0x2000,
-                             .slot_2 = 0x2000 + SLOT_SECTORS,
-                             .slot_sectors = SLOT_SECTORS,
-                             .model = UPDATE_MODEL_8GB};
+                             .slot_2 = 0x2000 + slot_sectors,
+                             .slot_sectors = slot_sectors,
+                             .model = small_model ? UPDATE_MODEL_512MB : UPDATE_MODEL_8GB};
     UpdateCheck check = updater_check(&file, &storage);
     free(image);
     printf("updater check: %s\n", check == UPDATE_VALID ? "valid" : "INVALID");

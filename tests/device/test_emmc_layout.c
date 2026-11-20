@@ -40,7 +40,7 @@ static void write_save_block(FakeDisk *disk, uint32_t lba)
     memcpy(sector, "SAVE", 4);
 }
 
-static void write_mbr(FakeDisk *disk, uint32_t lba, uint32_t partition_start)
+static void write_mbr(FakeDisk *disk, uint32_t lba, uint32_t partition_start, uint32_t sectors)
 {
     uint8_t *mbr = fake_disk_sector(disk, lba);
     mbr[0x1BE] = 0x00;
@@ -49,6 +49,10 @@ static void write_mbr(FakeDisk *disk, uint32_t lba, uint32_t partition_start)
     mbr[0x1C7] = (uint8_t)(partition_start >> 8);
     mbr[0x1C8] = (uint8_t)(partition_start >> 16);
     mbr[0x1C9] = (uint8_t)(partition_start >> 24);
+    mbr[0x1CA] = (uint8_t)sectors;
+    mbr[0x1CB] = (uint8_t)(sectors >> 8);
+    mbr[0x1CC] = (uint8_t)(sectors >> 16);
+    mbr[0x1CD] = (uint8_t)(sectors >> 24);
     mbr[510] = 0x55;
     mbr[511] = 0xAA;
 }
@@ -67,7 +71,7 @@ static void the_512_mb_layout_has_two_32_mib_slots_at_the_tool_base(void)
     fake_disk_init(&disk, SMALL_TOTAL_SECTORS);
     write_image_header(&disk, 0x2000);
     write_image_header(&disk, 0x12000);
-    write_mbr(&disk, 0x88000, 0x40);
+    write_mbr(&disk, 0x88000, 0x40, 0x66FC0);
     write_fat_boot_sector(&disk, 0x88040);
     EmmcLayout layout;
     BlockDevice device = fake_disk_device(&disk);
@@ -77,12 +81,30 @@ static void the_512_mb_layout_has_two_32_mib_slots_at_the_tool_base(void)
     CHECK_EQUAL(0x10000, layout.slot_sectors);
     CHECK_EQUAL(0x22000, layout.firmware_end);
     CHECK_EQUAL(0x88040, layout.volume_start);
+    CHECK_EQUAL(0x66FC0, layout.volume_sectors);
     CHECK(layout.slots_valid);
     CHECK(!emmc_layout_allows_write(&layout, 0, 1));
     CHECK(emmc_layout_allows_write(&layout, 0x2000, 1));
     CHECK(emmc_layout_allows_write(&layout, 0x12000, 1));
     CHECK(!emmc_layout_allows_write(&layout, 0x22000, 1));
+    CHECK(!emmc_layout_allows_write(&layout, 0x88000, 1));
     CHECK(emmc_layout_allows_write(&layout, 0x88040, 1));
+    CHECK(emmc_layout_allows_write(&layout, 0xEEFFF, 1));
+    CHECK(!emmc_layout_allows_write(&layout, 0xEEFFF, 2));
+    CHECK(!emmc_layout_allows_write(&layout, 0xEF000, 1));
+}
+
+static void the_512_mb_layout_rejects_invalid_partitions(void)
+{
+    static FakeDisk disk;
+    fake_disk_init(&disk, SMALL_TOTAL_SECTORS);
+    write_mbr(&disk, 0x88000, 0x40, 0x78000);
+    write_fat_boot_sector(&disk, 0x88040);
+    EmmcLayout layout;
+    BlockDevice device = fake_disk_device(&disk);
+    CHECK(!emmc_layout_read(&layout, &device, SMALL_TOTAL_SECTORS, true));
+    write_mbr(&disk, 0x88000, 0x41, 0x100);
+    CHECK(!emmc_layout_read(&layout, &device, SMALL_TOTAL_SECTORS, true));
 }
 
 static void the_firmware_area_and_slots_follow_the_idb_system_size(void)
@@ -190,7 +212,7 @@ static void an_mbr_or_exfat_volume_is_also_accepted(void)
     mbr[511] = 0xAA;
     EmmcLayout layout;
     CHECK(read_layout(&disk, &layout));
-    CHECK_EQUAL(0x2483F, layout.volume_start);
+    CHECK_EQUAL(0x24800, layout.volume_start);
 
     fake_disk_init(&disk, TOTAL_SECTORS);
     write_idb(&disk, 0, RECHORD_SYSTEM_MIB);
@@ -337,6 +359,7 @@ int main(void)
 {
     static const TestCase cases[] = {
         TEST_CASE(the_512_mb_layout_has_two_32_mib_slots_at_the_tool_base),
+        TEST_CASE(the_512_mb_layout_rejects_invalid_partitions),
         TEST_CASE(a_stale_header_loses_to_the_copy_that_matches_slot_1),
         TEST_CASE(without_a_matching_copy_the_first_header_found_is_used),
         TEST_CASE(the_firmware_area_and_slots_follow_the_idb_system_size),

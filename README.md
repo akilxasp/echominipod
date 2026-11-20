@@ -1,6 +1,6 @@
 # EchoPod
 
-Replacement firmware for the Snowsky (FiiO) Echo Mini 8 GB music player. It has an iPod-style Cover Flow browser, a music library built on the player, album favorites, M3U playlists and an Up Next queue. It isn't made or supported by FiiO.
+Replacement firmware for the Snowsky (FiiO) Echo Mini music player, with builds for the 512 MB and 8 GB models. It has an iPod-style Cover Flow browser, a music library built on the player, album favorites, M3U playlists and an Up Next queue. EchoPod is an independent project.
 
 - **Installing and using it:** `docs/user-guide.md`.
 - **Read first:** `docs/known-issues.md`. EchoPod is early, and has been tested on one player.
@@ -55,7 +55,7 @@ cmake --preset release
 cmake --build --preset release
 ```
 
-This writes `build/release/HIFIEC90.IMG`. The `device` preset builds the same image with the developer Diagnostics rows. `docs/device-install.md` covers installing builds during development.
+Use `build/release/MINIV898.IMG` on the **512 MB** Echo Mini and `build/release/HIFIEC90.IMG` on the **8 GB** Echo Mini. The `device` preset builds both filenames under `build/device/` with the developer Diagnostics rows. See [Install on the 512 MB model](docs/user-guide.md#install-on-the-512-mb-model) for the install and restore steps.
 
 ## Use your music library in the simulator
 

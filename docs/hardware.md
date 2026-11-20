@@ -19,7 +19,8 @@ A short map of the hardware EchoPod drives, for reading the code in `platform/de
 ## Storage
 
 - 8 GB eMMC on the DW-MMC controller. From the start: the ID block, firmware slot 1, firmware slot 2, a SAVE block, then the FAT32 user volume that appears as "ECHO MINI" over USB. EchoPod never writes the ID block, the SAVE block or the gap between them.
-- Each firmware slot holds the first 5 MiB of a firmware image. On the unit tested, slot 1 is at rockusb sector 0 and slot 2 at rockusb sector 69632.
+- On the tested 8 GB unit, slot 1 is at rockusb sector 0 and slot 2 at sector 69632. Each stores the first 5 MiB of an EchoPod image.
+- The 512 MB model uses soldered SD NAND on the same DW-MMC controller. In SD command space the firmware slots start at `0x2000` and `0x12000`, with 32 MiB reserved for each. EchoPod reads the FAT partition address and length from the internal MBR. [Measured SD NAND layout](https://github.com/BasilSkyWalk/echopod/pull/93)
 - A microSD slot on the same kind of controller, with card detect. EchoPod reads and writes FAT16, FAT32 and exFAT.
 
 ## Audio
@@ -47,5 +48,5 @@ A short map of the hardware EchoPod drives, for reading the code in `platform/de
 
 ## Firmware image
 
-- `HIFIEC90.IMG` is a 5 MiB `RKnanoFW` container: an outer header, a table of load rows, the code and data, a copy of the first 512 bytes at `0x44C000` and a CRC-32 trailer at `0x500000`. `tools/make_image.py` builds it, and `docs/architecture.md` describes the layout.
-- FiiO's firmware installs the highest-numbered `HIFIECnn.IMG` it finds at the top level of internal storage. FiiO's own images are 32 MiB.
+- `HIFIEC90.IMG` (8 GB) and `MINIV898.IMG` (512 MB) are copies of the same 5 MiB `RKnanoFW` container. It has an outer header, a table of load rows, the code and data, a copy of the first 512 bytes at `0x44C000` and a CRC-32 trailer at `0x500000`. `tools/make_image.py` builds it.
+- FiiO's firmware looks for `HIFIECnn.IMG` on the 8 GB model and `MINIVnnn.IMG` on the 512 MB model at the top level of internal storage. FiiO's own images are 32 MiB.

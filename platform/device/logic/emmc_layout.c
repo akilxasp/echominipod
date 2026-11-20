@@ -24,7 +24,7 @@ enum {
     SMALL_BASE_SECTORS = 0x2000
 };
 
-static uint32_t sector_words[2 * SECTOR_SIZE / 4] __attribute__((aligned(4)));
+static uint32_t sector_words[2 * SECTOR_SIZE / 4];
 
 static uint32_t le16(const uint8_t *bytes)
 {
@@ -80,10 +80,11 @@ static bool is_volume_start(const uint8_t *sector)
     return (entry[0] == 0x00 || entry[0] == 0x80) && entry[4] != 0 && le32(entry + 8) != 0;
 }
 
-static bool find_volume(const BlockDevice *device, uint32_t first, uint32_t total, uint32_t *start)
+static bool find_volume(EmmcLayout *layout, const BlockDevice *device, uint32_t total, bool sd_nand)
 {
     uint32_t *words = sector_words;
-    for (uint32_t lba = first; lba < SCAN_LIMIT && lba < total; lba += SECTORS_PER_MIB) {
+    for (uint32_t lba = layout->firmware_end; lba < SCAN_LIMIT && lba < total;
+         lba += SECTORS_PER_MIB) {
         if (!device->read(device->context, lba, 1, words)) {
             continue;
         }
@@ -91,13 +92,21 @@ static bool find_volume(const BlockDevice *device, uint32_t first, uint32_t tota
         if (!is_volume_start(bytes)) {
             continue;
         }
-        if (is_fat_or_exfat(bytes)) {
-            *start = lba;
+        if (!sd_nand) {
+            layout->volume_start = lba;
+            layout->volume_sectors = total - lba;
             return true;
         }
-        uint32_t partition = le32(bytes + PARTITION_ENTRY + 8);
-        if (partition != 0 && partition < total - lba) {
-            *start = lba + partition;
+        if (is_fat_or_exfat(bytes)) {
+            continue;
+        }
+        uint32_t offset = le32(bytes + PARTITION_ENTRY + 8);
+        uint32_t length = le32(bytes + PARTITION_ENTRY + 12);
+        if (offset < total - lba && length != 0 && length <= total - lba - offset &&
+            device->read(device->context, lba + offset, 1, words) &&
+            le16(bytes + SIGNATURE) == 0xAA55 && is_fat_or_exfat(bytes)) {
+            layout->volume_start = lba + offset;
+            layout->volume_sectors = length;
             return true;
         }
     }
@@ -185,11 +194,7 @@ bool emmc_layout_read(EmmcLayout *layout, const BlockDevice *device, uint32_t to
             .firmware_end = SMALL_BASE_SECTORS + SMALL_FIRMWARE_SECTORS,
             .slots_valid = read_image_header(device, SMALL_BASE_SECTORS, &image_bytes, &image_sum),
         };
-        if (!find_volume(device, layout->firmware_end, total_sectors, &layout->volume_start)) {
-            return false;
-        }
-        layout->volume_sectors = total_sectors - layout->volume_start;
-        return true;
+        return find_volume(layout, device, total_sectors, true);
     }
     uint32_t system_mib = 0;
     if (!read_system_mib(device, &system_mib)) {
@@ -205,9 +210,5 @@ bool emmc_layout_read(EmmcLayout *layout, const BlockDevice *device, uint32_t to
     };
     find_second_slot(layout, device);
     layout->slots_valid = read_image_header(device, layout->slot_1, &image_bytes, &image_sum);
-    if (!find_volume(device, layout->firmware_end, total_sectors, &layout->volume_start)) {
-        return false;
-    }
-    layout->volume_sectors = total_sectors - layout->volume_start;
-    return true;
+    return find_volume(layout, device, total_sectors, false);
 }

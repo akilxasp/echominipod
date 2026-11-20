@@ -113,21 +113,6 @@ static const SdHost NAND_HOST = {
     nand_command,      nand_set_clock, nand_set_bus_width, nand_delay_ms,
     nand_card_present, nand_stop,      nand_now_ms,        NULL};
 
-static bool emmc_answers(void)
-{
-    uint32_t words[4] = {0, 0, 0, 0};
-    uint32_t none[4] = {0, 0, 0, 0};
-    mmc_command(&EMMC_HOST, (SdCommand){CMD_GO_IDLE, 0, SD_RESPONSE_NONE, true}, none);
-    board_delay_us(IDLE_SETTLE_US);
-    for (int attempt = 0; attempt < EMMC_PROBE_TRIES; attempt++) {
-        if (command(CMD_SEND_OP_COND, OCR_ARGUMENT, SD_RESPONSE_SHORT_NO_CRC, words)) {
-            return true;
-        }
-        board_delay_ms(EMMC_PROBE_DELAY_MS);
-    }
-    return false;
-}
-
 static bool sd_nand_start(void)
 {
     mmc_reset_controller(&EMMC_HOST);
@@ -152,15 +137,20 @@ static void power_controller(void)
     mmc_power_cycle(&EMMC_HOST);
 }
 
-static bool wait_for_ocr(void)
+static bool wait_for_ocr(bool *answered)
 {
     uint32_t words[4] = {0, 0, 0, 0};
     for (int attempt = 0; attempt < OCR_TRIES; attempt++) {
-        if (command(CMD_SEND_OP_COND, OCR_ARGUMENT, SD_RESPONSE_SHORT_NO_CRC, words) &&
-            (words[0] & OCR_READY) != 0) {
-            return (words[0] & OCR_SECTOR_MODE) != 0;
+        if (command(CMD_SEND_OP_COND, OCR_ARGUMENT, SD_RESPONSE_SHORT_NO_CRC, words)) {
+            *answered = true;
+            if ((words[0] & OCR_READY) != 0) {
+                return (words[0] & OCR_SECTOR_MODE) != 0;
+            }
         }
-        board_delay_ms(1);
+        if (!*answered && attempt + 1 == EMMC_PROBE_TRIES) {
+            return false;
+        }
+        board_delay_ms(*answered ? 1 : EMMC_PROBE_DELAY_MS);
     }
     return false;
 }
@@ -170,13 +160,13 @@ static uint32_t cid_serial(const uint32_t cid[4])
     return (cid[1] & 0xFFFFu) << 16 | cid[0] >> 16;
 }
 
-static bool identify(void)
+static bool identify(bool *answered)
 {
     uint32_t words[4] = {0, 0, 0, 0};
     uint32_t none[4] = {0, 0, 0, 0};
     mmc_command(&EMMC_HOST, (SdCommand){CMD_GO_IDLE, 0, SD_RESPONSE_NONE, true}, none);
     board_delay_us(IDLE_SETTLE_US);
-    if (!wait_for_ocr() || !command(CMD_ALL_SEND_CID, 0, SD_RESPONSE_LONG, words)) {
+    if (!wait_for_ocr(answered) || !command(CMD_ALL_SEND_CID, 0, SD_RESPONSE_LONG, words)) {
         return false;
     }
     emmc.serial = cid_serial(words);
@@ -338,14 +328,19 @@ bool emmc_status(uint32_t *status)
     return true;
 }
 
+bool emmc_is_sd_nand(void)
+{
+    return sd_nand_mode;
+}
+
 bool emmc_start(EmmcInfo *info)
 {
     if (!started) {
         sd_nand_mode = false;
         power_controller();
-        if (emmc_answers()) {
-            started = identify() && select_and_widen();
-        } else {
+        bool answered = false;
+        started = identify(&answered) && select_and_widen();
+        if (!answered) {
             sd_nand_mode = sd_nand_start();
             started = sd_nand_mode;
             if (sd_nand_mode) {
