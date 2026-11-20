@@ -2,28 +2,28 @@
 
 EchoPod is a replacement firmware for the Snowsky (FiiO) Echo Mini music player. It has a Cover Flow album browser, a music library built on the player, favorites, playlists and an Up Next queue. It is not made or supported by FiiO.
 
-Read `docs/known-issues.md` before you install. EchoPod has been tested on one player so far.
+Read `docs/known-issues.md` before you install.
 
 **Use it at your own risk.** EchoPod comes with no warranty (see `LICENSE`). Replacing a player's firmware can leave it unable to start; during development that happened, and the player was brought back through maskrom (`docs/device-recovery.md`). Only install it if you're prepared to do that.
 
 ## Which players
 
-- **Echo Mini 8 GB: supported.** Its FiiO update file is called `HIFIECnn.IMG`.
-- **Echo Mini 512 MB: not supported.** Its FiiO update file is called `MINIVnnn.IMG`. Its firmware ignores EchoPod's file, and EchoPod refuses its firmware.
+- **Echo Mini 512 MB** uses `MINIV898.IMG`. Follow the 512 MB steps below.
+- **Echo Mini 8 GB** uses `HIFIEC90.IMG`. Follow the 8 GB steps below.
 
-Tested starting points: FiiO firmware 3.7.0, 3.9.0 and 4.0.0 (Settings → About on the player shows yours).
+## Install on the 512 MB model
 
-## Before you install
+1. Charge the player, back up the files on its internal storage and keep a copy of FiiO's 512 MB firmware. The stock file is named `MINIVnnn.IMG`, for example `MINIV400.IMG` for 4.0.0.
+2. Use the fork's `MINIV898.IMG`. To build it, run `cmake --preset release` and `cmake --build --preset release`. The file is at `build/release/MINIV898.IMG`.
+3. While running FiiO's firmware, connect the player and copy `MINIV898.IMG` to the root of the internal **ECHO MINI** drive. Clear any previous `MINIVnnn.IMG` or `MINIMINI.IMG` update file from that drive first.
+4. Eject the drive, disconnect USB, remove the microSD card and power-cycle the player. Let the update finish before touching the controls.
+5. Reinsert the microSD card and restart EchoPod to build the library. Settings and library files live on the card.
 
-1. Copy anything you want to keep off the player's internal storage.
-2. Charge the battery.
-3. Download `HIFIEC90.IMG` and `SHA256SUMS.txt` from the [EchoPod releases](https://github.com/BasilSkyWalk/echopod/releases), and check the file:
-   - Windows (PowerShell): `Get-FileHash HIFIEC90.IMG`
-   - macOS or Linux: `shasum -a 256 HIFIEC90.IMG`
+The 512 MB installation and playback were reported working on the upstream port. This fork's build and updater checks run on a computer. [Upstream hardware testing](https://github.com/BasilSkyWalk/echopod/pull/93)
 
-   The result must match the line for `HIFIEC90.IMG` in `SHA256SUMS.txt`. If it doesn't, download it again.
+## Install on the 8 GB model
 
-## Install
+Start with a charged battery and a backup of your internal storage. Get `HIFIEC90.IMG` and `SHA256SUMS.txt` from the [upstream EchoPod releases](https://github.com/BasilSkyWalk/echopod/releases), or build the image with the release preset. Check a downloaded image against the published checksum with `Get-FileHash HIFIEC90.IMG` on Windows or `shasum -a 256 HIFIEC90.IMG` on macOS or Linux. Upstream tested FiiO firmware 3.7.0, 3.9.0 and 4.0.0 as starting points.
 
 1. Connect the player to your computer. The internal storage appears as a drive called ECHO MINI.
 2. Copy `HIFIEC90.IMG` to the top level of that drive, not into a folder. Delete any other `HIFIECnn.IMG` or `ECHOMINI.IMG` file there first: the player installs the one with the highest number.
@@ -315,23 +315,23 @@ The player keeps a log of the songs you play in `/.echo/history.bin` on the card
 
 ## Updating EchoPod
 
-1. Copy the new `HIFIEC90.IMG` to the top level of internal storage.
+1. Copy the new `MINIV898.IMG` (512 MB) or `HIFIEC90.IMG` (8 GB) to the top level of internal storage.
 2. Eject both drives. The player checks the file and shows "Installing update", then "Update installed".
 3. Unplug, then hold Power to turn the player off, and switch it on again.
 
 ## Going back to FiiO's firmware
 
-1. Download FiiO's firmware for the **8 GB** Echo Mini from FiiO's website and unzip it.
-2. Delete `HIFIEC90.IMG` from internal storage if it's still there.
-3. Copy FiiO's `HIFIECnn.IMG` (for example `HIFIEC40.IMG`) to the top level of internal storage, unchanged. Don't copy the `MINIVnnn.IMG` file from the same zip: that one is for the 512 MB model, and EchoPod refuses it.
+1. Download FiiO's firmware for your Echo Mini from FiiO's website and unzip it.
+2. Remove the EchoPod update file from internal storage if it is still there.
+3. Copy the matching stock image, with its original name, to the top level of internal storage. Use `MINIVnnn.IMG` on the **512 MB** model or `HIFIECnn.IMG` on the **8 GB** model.
 4. Eject both drives. The player checks the file (this takes a while) and shows "Installing FiiO firmware", then "FiiO firmware installed".
 5. Unplug, take the microSD card out, hold Power to turn the player off, and switch it on. FiiO's firmware starts, shows "Updating" once more for a minute or two while it installs the same file, and deletes it.
 
 ## If something goes wrong
 
-- **"isn't a valid image for this player" when going back to FiiO:** check that you copied the `HIFIECnn.IMG` file, not `MINIVnnn.IMG`, and that it's unchanged (its hash matches the one in FiiO's zip). EchoPod 0.2.0 and earlier also refuse FiiO's 4.0.0 firmware: update EchoPod first, or install FiiO 3.9.0 (`HIFIEC39.IMG`) and then FiiO's own update to 4.0.0. To switch to another custom firmware, go back to FiiO's first: EchoPod only installs its own images and FiiO's.
-- **The install doesn't take** (FiiO's firmware comes back after a short "Updating"): copy the file again, check its hash on the player's drive, and make sure it's the only `HIFIECnn.IMG` there. If it keeps failing, the only other way in is maskrom (below).
-- **The player doesn't start at all:** every case so far was recovered through the chip's maskrom mode, which writes FiiO's firmware back from a computer over USB. It needs a patched `rkdeveloptool` and some care; the steps are in `docs/device-recovery.md`.
+- **"isn't a valid image for this player" when going back to FiiO:** verify the filename matches your model and compare the file with the one in the official ZIP. For an 8 GB unit running EchoPod 0.2.0 or earlier, update EchoPod first or restore FiiO 3.9.0 and then use FiiO's updater to reach 4.0.0. To switch to another custom firmware, restore FiiO's firmware first.
+- **The install fails and FiiO's firmware returns.** Copy the file again, check its checksum on the player's drive, and clear any other firmware update files from the drive.
+- **The player fails to start.** See the maskrom recovery guide for the 8 GB model and the separate 512 MB recovery report. [8 GB recovery guide](device-recovery.md) · [512 MB recovery report](https://github.com/BasilSkyWalk/echopod/issues/19)
 - **A "STALL" or "FAULT" screen** (white text on black with PC and LR lines): photograph it, then press the small RST hole rather than holding Power. RST keeps the player's memory, so Home → Diagnostics → Last start and Last stack still show what stopped; holding Power on battery wipes it.
 - **The player doesn't turn on after an update:** press RST once and start it; then photograph Home → Diagnostics → Last update (what the installer did and the state it left the internal storage in), Last start ("#n after power-off" means the player never lost power when you switched it off) and Boot hold if present.
 - **Reporting a problem:** include what you did, your FiiO version before installing, and the Firmware, Last start, Last step, Last stack, Last USB, USB errors and Last update lines from Home → Diagnostics.

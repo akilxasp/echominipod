@@ -2,6 +2,8 @@
 
 This covers installing builds you made yourself. Release users should follow `docs/user-guide.md`. Before trying a build of your own, make sure you can recover the player (`docs/device-recovery.md`).
 
+On the **512 MB** model, use `MINIV898.IMG` from `build/device/` or `build/release/` and follow the [512 MB install and restore steps](user-guide.md#install-on-the-512-mb-model). The direct maskrom sector numbers below apply to the **8 GB** model.
+
 ## First install
 
 The first install goes through FiiO's own updater, as in the user guide: copy `HIFIEC90.IMG` (from `build/device/` or `build/release/`) to the top level of internal storage while FiiO's firmware runs, eject, unplug, take the microSD card out and restart. It has worked from FiiO 3.7.0 and 3.9.0 with the file copied from Windows.
@@ -40,7 +42,7 @@ If FiiO's updater won't take the file, maskrom can write the image straight into
 3. Eject both drives. The player shows "Checking HIFIEC90.IMG", then "Installing update" with a percentage, then "Update installed".
 4. Unplug, hold Power to switch off, then switch on. The new build starts.
 
-The updater takes the highest-numbered `HIFIECnn.IMG`. It checks the image's shape, rows, entry vector, header copy and CRC before writing, skips an image that is already installed, and writes slot 2 first, then slot 1, reading back every chunk. It also accepts FiiO's own 8 GB image (see "Going back to FiiO's firmware" in the user guide) and refuses the 512 MB model's.
+The 8 GB updater accepts `ECHOMINI.IMG` or the highest-numbered `HIFIECnn.IMG`. The 512 MB updater checks for `MINIVnnn.IMG` numbered 300 through 898. Both check the image before writing, skip an image that is already installed, and write slot 2 first, then slot 1, reading back every chunk. Each accepts the stock image for its own model.
 
 ## What to check after an install
 

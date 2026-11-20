@@ -1,6 +1,7 @@
 #include "hal/power.h"
 #include "board.h"
 #include "dac.h"
+#include "emmc.h"
 #include "gpio.h"
 #include "hal/clock.h"
 #include "hal/system.h"
@@ -13,10 +14,13 @@
 static const GpioPin POWER_KEY = {2, 5};
 static const GpioPin POWER_HOLD = {2, 6};
 static const GpioPin CHARGE_STATUS = {2, 3};
+static const GpioPin NAND_POWER_CONTROL = {0, 14};
+static const GpioPin NAND_DAC_RESET = {2, 1};
 
 enum {
     START_HOLD_MS = 1000,
-    CUT_WAIT_MS = 1000
+    CUT_WAIT_MS = 1000,
+    NAND_SHUTDOWN_SETTLE_US = 5000
 };
 
 static bool charge_status_ready;
@@ -81,6 +85,19 @@ bool hal_power_take_usb_start(void)
     return started;
 }
 
+static void release_power_hold(void)
+{
+    if (emmc_is_sd_nand()) {
+        gpio_mux(NAND_POWER_CONTROL, GPIO_FUNCTION_GPIO);
+        gpio_output(NAND_POWER_CONTROL, false);
+        gpio_mux(NAND_DAC_RESET, GPIO_FUNCTION_GPIO);
+        gpio_output(NAND_DAC_RESET, false);
+        uint32_t iterations = hal_system_clock_mhz() * (NAND_SHUTDOWN_SETTLE_US / 2);
+        __asm__ volatile("1: subs %0, %0, #1\n\tbne 1b" : "+r"(iterations) : : "cc");
+    }
+    gpio_output(POWER_HOLD, false);
+}
+
 void hal_power_confirm_start(bool hold_required)
 {
     static bool checked;
@@ -98,7 +115,7 @@ void hal_power_confirm_start(bool hold_required)
         return;
     }
     board_backlight_off();
-    gpio_output(POWER_HOLD, false);
+    release_power_hold();
     board_delay_ms(CUT_WAIT_MS);
     gpio_output(POWER_HOLD, true);
 }
@@ -145,7 +162,7 @@ void board_power_cut(void)
     __asm__ volatile("cpsid i" ::: "memory");
     board_start_record_power_off();
     gpio_mux(POWER_HOLD, GPIO_FUNCTION_GPIO);
-    gpio_output(POWER_HOLD, false);
+    release_power_hold();
     for (;;) {
         board_watchdog_kick();
     }
@@ -167,7 +184,7 @@ void hal_power_off(void)
     __asm__ volatile("cpsid i" ::: "memory");
     board_start_record_power_off();
     gpio_mux(POWER_HOLD, GPIO_FUNCTION_GPIO);
-    gpio_output(POWER_HOLD, false);
+    release_power_hold();
     for (;;) {
         board_watchdog_kick();
     }

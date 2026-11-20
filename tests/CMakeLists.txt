@@ -491,6 +491,12 @@ if(ARM_GCC)
         FIXTURES_REQUIRED device_image
         SKIP_RETURN_CODE 77
     )
+    add_test(NAME device_image_512mb_passes_the_updater_check
+        COMMAND check_device_image ${PROJECT_SOURCE_DIR}/build/device/MINIV898.IMG 512mb
+    )
+    set_tests_properties(device_image_512mb_passes_the_updater_check PROPERTIES
+        FIXTURES_REQUIRED device_image
+    )
 else()
     message(STATUS "arm-none-eabi-gcc not found: the target_audit test is skipped")
 endif()
